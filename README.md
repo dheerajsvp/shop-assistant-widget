@@ -60,7 +60,7 @@ Build once (`npm run build`), host `dist/shop-assistant.js` anywhere, then add t
 <script
   src="https://your-cdn.com/shop-assistant.js"
   data-brand-name="My Store"
-  data-assistant-name="Aria"
+  data-assistant-name="Sage"
   data-primary-color="#0EA5E9"
   data-position="right"
   data-theme="auto"
@@ -71,7 +71,7 @@ Build once (`npm run build`), host `dist/shop-assistant.js` anywhere, then add t
 | Attribute | Default | Description |
 |---|---|---|
 | `data-brand-name` | `Lumen & Co.` | Store name in the header |
-| `data-assistant-name` | `Aria` | Assistant persona name |
+| `data-assistant-name` | `Sage` | Assistant persona name |
 | `data-primary-color` | `#6D5DF6` | Any CSS colour; the whole theme derives from it |
 | `data-position` | `right` | `right` or `left` |
 | `data-theme` | `auto` | `light`, `dark`, or `auto` (follows the OS) |

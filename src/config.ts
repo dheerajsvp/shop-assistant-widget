@@ -17,7 +17,7 @@ export interface WidgetConfig {
 
 export const DEFAULT_CONFIG: WidgetConfig = {
   brandName: 'Lumen & Co.',
-  assistantName: 'Aria',
+  assistantName: 'Sage',
   primaryColor: '#6D5DF6',
   position: 'right',
   theme: 'auto',
