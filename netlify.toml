@@ -1,0 +1,8 @@
+# Netlify deploy settings: picked up automatically when the repo is imported.
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  # Vite 8 needs a recent Node.js
+  NODE_VERSION = "22"
