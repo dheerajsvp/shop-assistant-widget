@@ -3,7 +3,7 @@
 An embeddable, voice-enabled AI shopping assistant that any website can add with **one `<script>` tag**.
 Customers can chat or talk to the assistant, browse a product catalogue, manage a cart, and complete a mock checkout, all inside a floating widget.
 
-> **Live demo:** _add your Netlify/Vercel link here_ · **Demo video:** _add your video link here_
+> **Live demo:** https://dheeraj-shop-assistant.netlify.app · **One-line embed proof:** https://dheeraj-shop-assistant.netlify.app/one-line-embed.html · **Demo video:** _add your video link here_
 
 ## Features
 
@@ -159,9 +159,11 @@ src/
 
 ## Deploying the demo
 
-`npm run build` produces a static `dist/` folder (demo page + widget):
+`npm run build` produces a static `dist/` folder (demo page + widget).
 
-- **Netlify:** drag and drop `dist/` onto https://app.netlify.com/drop
+The live demo is deployed on **Netlify**, connected to this repository: every push to `main` rebuilds and redeploys automatically, using the settings in [`netlify.toml`](netlify.toml).
+
+- **Netlify:** import the repo (settings are read from `netlify.toml`), or drag and drop `dist/` onto https://app.netlify.com/drop
 - **Vercel:** import the repo. Build command `npm run build`, output directory `dist`
 
 ## Tech stack
