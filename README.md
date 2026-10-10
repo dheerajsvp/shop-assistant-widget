@@ -24,7 +24,7 @@ Customers can chat or talk to the assistant, browse a product catalogue, manage 
 **Requirements:** Node.js 18+ and npm. Voice features need **Chrome or Edge** (Safari partially).
 
 ```bash
-git clone https://github.com/<your-username>/shop-assistant-widget.git
+git clone https://github.com/Dheerajsvp/shop-assistant-widget.git
 cd shop-assistant-widget
 npm install
 npm run dev
