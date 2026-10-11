@@ -52,13 +52,19 @@ Open **http://localhost:5173**. This is a demo store page with the widget embedd
 <script src="./shop-assistant.js"></script>
 ```
 
-and the full widget (chat, voice, catalogue, cart, checkout) appears on it. Open `/one-line-embed.html` on the dev server, the preview or the live demo to see it.
+and the full widget (chat, voice, catalogue, cart, checkout) appears on it. Open `/one-line-embed.html` on the dev server, the preview or the live demo to see it. (It can use the short `./` path because it sits next to the file.)
 
-Build once (`npm run build`), host `dist/shop-assistant.js` anywhere, then add the tag. Branding is optional:
+**To add it to any other website**, paste this line, which uses the full address of the hosted file:
+
+```html
+<script src="https://dheeraj-shop-assistant.netlify.app/shop-assistant.js"></script>
+```
+
+To host your own copy, build once (`npm run build`), upload `dist/shop-assistant.js` anywhere, and point `src` at it. Branding is optional:
 
 ```html
 <script
-  src="https://your-cdn.com/shop-assistant.js"
+  src="https://dheeraj-shop-assistant.netlify.app/shop-assistant.js"
   data-brand-name="My Store"
   data-assistant-name="Sage"
   data-primary-color="#0EA5E9"

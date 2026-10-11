@@ -132,6 +132,33 @@
       .embed h2 { margin: 0 0 6px; font-size: 22px; }
       .embed p { margin: 0 0 18px; color: #a3a2b3; }
       pre { margin: 0; padding: 18px; border-radius: 14px; background: #0b0b10; overflow-x: auto; font-size: 15px; line-height: 1.6; }
+      .snippet { position: relative; }
+      .snippet pre { padding-right: 112px; }
+      .copy-btn {
+        position: absolute;
+        top: 50%;
+        right: 12px;
+        transform: translateY(-50%);
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        height: 34px;
+        padding: 0 12px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 10px;
+        background: #1c1c26;
+        color: #e9e8f3;
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 600;
+        text-transform: none;
+        cursor: pointer;
+        transition: background 0.2s, border-color 0.2s, color 0.2s;
+      }
+      .copy-btn svg { width: 15px; height: 15px; }
+      .copy-btn:hover { background: #262633; border-color: rgba(255, 255, 255, 0.28); }
+      .copy-btn.is-copied { color: #86efac; border-color: rgba(134, 239, 172, 0.5); }
+      .copy-btn:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 2px; }
       .embed .embed-note { margin: 14px 0 0; font-size: 14px; }
       .embed-note code { color: #c4b5fd; font-size: 13px; }
       .embed-link {
@@ -224,7 +251,13 @@
       <section class="embed">
         <h2>Add it to any website with one line</h2>
         <p>The widget renders in a Shadow DOM, so this page's styles can't affect it, and vice versa.</p>
-        <pre><code><span class="t">&lt;script</span> <span class="a">src</span>=<span class="s">"shop-assistant.js"</span><span class="t">&gt;&lt;/script&gt;</span></code></pre>
+        <div class="snippet">
+          <pre><code><span class="t">&lt;script</span> <span class="a">src</span>=<span class="s">"<span id="embed-url">https://dheeraj-shop-assistant.netlify.app/shop-assistant.js</span>"</span><span class="t">&gt;&lt;/script&gt;</span></code></pre>
+          <button type="button" class="copy-btn" id="copy-embed" aria-label="Copy the embed code">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></svg>
+            <span>Copy</span>
+          </button>
+        </div>
         <p class="embed-note">
           Optional: customise it with attributes such as <code>data-brand-name</code>, <code>data-primary-color</code>
           or <code>data-position="left"</code>.
@@ -237,6 +270,45 @@
 
       <footer>Lumen &amp; Co. is a fictional store made for this demo. All products and payments are mock data.</footer>
     </div>
+
+    <script>
+      // Embed snippet: show the full address of the widget file so it can be pasted onto any website as-is.
+      (function () {
+        var urlEl = document.getElementById('embed-url');
+        var btn = document.getElementById('copy-embed');
+        var label = btn.querySelector('span');
+        // On a deployed copy, point at that deployment. Locally (dev server / file), keep the live address,
+        // since a localhost address wouldn't work on anyone else's website.
+        var local = location.protocol === 'file:' || /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+        if (!local) urlEl.textContent = new URL('shop-assistant.js', location.href).href;
+
+        function copyText(text) {
+          if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
+          var area = document.createElement('textarea');
+          area.value = text;
+          area.setAttribute('readonly', '');
+          area.style.position = 'fixed';
+          area.style.opacity = '0';
+          document.body.appendChild(area);
+          area.select();
+          var ok = document.execCommand('copy');
+          area.remove();
+          return ok ? Promise.resolve() : Promise.reject(new Error('copy failed'));
+        }
+
+        var timer;
+        btn.addEventListener('click', function () {
+          // Split the closing tag so the browser doesn't end this inline script early.
+          var snippet = '<script src="' + urlEl.textContent + '"></' + 'script>';
+          copyText(snippet).then(
+            function () { label.textContent = 'Copied ✓'; btn.classList.add('is-copied'); },
+            function () { label.textContent = 'Press Ctrl+C'; }
+          );
+          clearTimeout(timer);
+          timer = setTimeout(function () { label.textContent = 'Copy'; btn.classList.remove('is-copied'); }, 2000);
+        });
+      })();
+    </script>
 
     <!-- The widget: the same tag a real store would paste, plus optional branding attributes.
          (During `npm run dev`, Vite points it at the source code automatically.) -->
