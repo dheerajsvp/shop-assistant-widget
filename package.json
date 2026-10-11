@@ -4,6 +4,9 @@
   "version": "1.0.0",
   "description": "Embeddable AI shopping assistant widget with voice input/output, product catalogue, cart and mock checkout.",
   "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",

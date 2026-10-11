@@ -21,7 +21,7 @@ Customers can chat or talk to the assistant, browse a product catalogue, manage 
 
 ## Quick start
 
-**Requirements:** Node.js 18+ and npm. Voice features need **Chrome or Edge** (Safari partially).
+**Requirements:** [Node.js](https://nodejs.org) **22.12 or newer** (the current LTS works) and npm. Check with `node --version`. Voice features need **Chrome or Edge** (Safari partially).
 
 ```bash
 git clone https://github.com/dheerajsvp/shop-assistant-widget.git
@@ -41,7 +41,7 @@ Open **http://localhost:5173**. This is a demo store page with the widget embedd
 | `npm run dev` | Dev server with hot reload (demo store + widget) |
 | `npm test` | Unit tests (assistant NLU, pricing, payment validation, cart reducer) |
 | `npm run typecheck` | TypeScript type check |
-| `npm run build` | Production build into `dist/`: `shop-assistant.js` (the widget) and `index.html` (demo page) |
+| `npm run build` | Production build into `dist/`: `shop-assistant.js` (the widget), `index.html` (demo store) and `one-line-embed.html` (one-line proof page) |
 | `npm run preview` | Serve the production build at http://localhost:4173 |
 
 ## Embedding on any website
