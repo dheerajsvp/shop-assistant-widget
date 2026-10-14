@@ -79,6 +79,20 @@ export function parseChatResponse(data: unknown): ChatResponse {
   };
 }
 
+/**
+ * Fire-and-forget: wake the AI endpoint while the customer reads the greeting, so their first
+ * real message isn't slowed by a cold start. Failures are ignored on purpose.
+ */
+export function warmUpSage(endpoint: string): void {
+  try {
+    const url = new URL(endpoint, window.location.href);
+    url.searchParams.set('warm', '1');
+    void fetch(url, { method: 'POST', signal: AbortSignal.timeout(10_000) }).catch(() => {});
+  } catch {
+    // An unusable endpoint just means no warm-up.
+  }
+}
+
 /** Ask the AI endpoint. Throws `AiUnavailableError` (or a network/abort error) on any failure. */
 export async function askSage(endpoint: string, request: ChatRequest, timeoutMs = 15000): Promise<ChatResponse> {
   const res = await fetch(endpoint, {

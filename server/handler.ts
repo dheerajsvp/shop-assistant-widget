@@ -2,7 +2,7 @@
  * HTTP layer for `POST /api/chat`, written against the web-standard Request/Response so
  * the same code runs as a Netlify Function and inside the Vite dev/preview servers.
  */
-import { AiError, runGemini } from './gemini';
+import { AiError, runGemini, warmUp } from './gemini';
 import { createRateLimiter } from './rateLimit';
 import { ValidationError, parseChatRequest } from './validate';
 
@@ -26,6 +26,12 @@ const limiter = createRateLimiter([
   { windowMs: 3_600_000, max: 80 },
 ]);
 
+// Warm-up pings get their own small allowance, so they can never use up a visitor's chat allowance.
+const warmLimiter = createRateLimiter([{ windowMs: 60_000, max: 4 }]);
+
+const isAbort = (err: unknown) =>
+  err instanceof Error && (err.name === 'AbortError' || err.name === 'TimeoutError' || /aborted|timed? ?out/i.test(err.message));
+
 function json(body: unknown, status = 200, extra: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -46,6 +52,16 @@ export async function handleChatRequest(req: Request, env: HandlerEnv): Promise<
   if (req.method !== 'POST') return json({ error: 'Use POST.' }, 405, { Allow: 'POST, OPTIONS' });
 
   const apiKey = env.GEMINI_API_KEY;
+
+  // `POST /api/chat?warm=1`: wake things up before the first real message. Always answers 204
+  // and reveals nothing, whether or not it did any work.
+  if (new URL(req.url).searchParams.get('warm') === '1') {
+    if (apiKey && warmLimiter.check(clientKey(req)).ok) {
+      await warmUp({ apiKey, model: env.GEMINI_MODEL || DEFAULT_MODEL, timeoutMs: 6000 });
+    }
+    return new Response(null, { status: 204, headers: CORS });
+  }
+
   if (!apiKey) return json({ error: 'The AI is not configured.' }, 503);
 
   const rate = limiter.check(clientKey(req));
@@ -75,7 +91,7 @@ export async function handleChatRequest(req: Request, env: HandlerEnv): Promise<
     console.error('[chat] model call failed:', message);
     const upstream = (err as { status?: number })?.status;
     if (err instanceof AiError) return json({ error: 'The AI could not answer.' }, err.status);
-    if (err instanceof Error && err.name === 'TimeoutError') return json({ error: 'The AI took too long.' }, 504);
+    if (isAbort(err)) return json({ error: 'The AI took too long.' }, 504);
     if (upstream === 429) return json({ error: 'The AI is busy right now.' }, 429);
     return json({ error: 'The AI could not answer.' }, 502);
   }

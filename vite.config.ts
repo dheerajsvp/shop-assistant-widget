@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { ServerResponse } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import type { Connect, Plugin, ViteDevServer } from 'vite';
 import { createServer, loadEnv } from 'vite';
@@ -52,7 +52,7 @@ function chatEndpointPlugin(): Plugin {
   const load = async (server: ViteDevServer): Promise<ChatHandler> =>
     (await server.ssrLoadModule('/server/handler.ts')).handleChatRequest as ChatHandler;
 
-  const makeMiddleware = (getHandler: () => Promise<ChatHandler>): Connect.NextHandleFunction => async (req: IncomingMessage, res: ServerResponse) => {
+  const makeMiddleware = (getHandler: () => Promise<ChatHandler>): Connect.NextHandleFunction => async (req: Connect.IncomingMessage, res: ServerResponse) => {
     try {
       const chunks: Buffer[] = [];
       let size = 0;
@@ -66,7 +66,9 @@ function chatEndpointPlugin(): Plugin {
         if (value !== undefined) headers.set(name, Array.isArray(value) ? value.join(', ') : value);
       }
       const hasBody = req.method !== 'GET' && req.method !== 'HEAD';
-      const request = new Request(`http://${req.headers.host ?? 'localhost'}/api/chat`, {
+      // Keep the query string (e.g. ?warm=1); the router has already stripped the mount path.
+      const search = new URL(req.originalUrl ?? req.url ?? '/', 'http://localhost').search;
+      const request = new Request(`http://${req.headers.host ?? 'localhost'}/api/chat${search}`, {
         method: req.method,
         headers,
         body: hasBody ? Buffer.concat(chunks) : undefined,

@@ -5,10 +5,11 @@ import { handleChatRequest, type HandlerEnv } from './handler';
 // Never call the real model in unit tests: offline, free and deterministic.
 vi.mock('./gemini', async () => {
   const actual = await vi.importActual<typeof import('./gemini')>('./gemini');
-  return { ...actual, runGemini: vi.fn() };
+  return { ...actual, runGemini: vi.fn(), warmUp: vi.fn(async () => {}) };
 });
-const { runGemini } = await import('./gemini');
+const { runGemini, warmUp } = await import('./gemini');
 const mockedRun = vi.mocked(runGemini);
+const mockedWarm = vi.mocked(warmUp);
 
 const ENV: HandlerEnv = { GEMINI_API_KEY: 'test-key' };
 let counter = 0;
@@ -103,6 +104,47 @@ describe('handleChatRequest', () => {
     expect(Number(blocked.headers.get('retry-after'))).toBeGreaterThan(0);
     // Someone else is unaffected.
     expect((await post(valid, ENV, '203.0.113.10')).status).toBe(200);
+  });
+});
+
+describe('warm-up pings', () => {
+  const warm = (env: HandlerEnv = ENV, ip = `198.51.100.${++counter}`) =>
+    handleChatRequest(
+      new Request('http://localhost/api/chat?warm=1', { method: 'POST', headers: { 'x-forwarded-for': ip } }),
+      env,
+    );
+
+  beforeEach(() => mockedWarm.mockClear());
+
+  it('wakes the model and answers 204 with no body', async () => {
+    const res = await warm();
+    expect(res.status).toBe(204);
+    expect(await res.text()).toBe('');
+    expect(mockedWarm).toHaveBeenCalledTimes(1);
+    expect(mockedRun).not.toHaveBeenCalled();
+  });
+
+  it('answers 204 and does nothing when there is no key, so it leaks nothing', async () => {
+    const res = await warm({});
+    expect(res.status).toBe(204);
+    expect(mockedWarm).not.toHaveBeenCalled();
+  });
+
+  it('has its own limit, which never uses up the visitor\'s chat allowance', async () => {
+    const ip = '198.51.100.250';
+    for (let i = 0; i < 6; i++) expect((await warm(ENV, ip)).status).toBe(204);
+    expect(mockedWarm).toHaveBeenCalledTimes(4); // the rest were quietly ignored
+    mockedRun.mockResolvedValue({ text: 'ok', productIds: [], actions: [] });
+    expect((await post(valid, ENV, ip)).status).toBe(200);
+  });
+});
+
+describe('timeouts', () => {
+  it('reports an aborted model call as a 504, not a generic 502', async () => {
+    mockedRun.mockRejectedValueOnce(Object.assign(new Error('This operation was aborted'), { name: 'AbortError' }));
+    expect((await post(valid)).status).toBe(504);
+    mockedRun.mockRejectedValueOnce(new Error('This operation was aborted'));
+    expect((await post(valid)).status).toBe(504);
   });
 });
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { respond, type AssistantAction, type AssistantReply } from '../ai/assistant';
-import { askSage } from '../ai/chatApi';
+import { askSage, warmUpSage } from '../ai/chatApi';
 import { toReply } from '../ai/reply';
 import type { WidgetConfig } from '../config';
 import { PRODUCTS, getProduct } from '../data/products';
@@ -113,6 +113,14 @@ export function Widget({ config, bridge }: { config: WidgetConfig; bridge: Widge
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [open, detail]);
+
+  // The first time the panel opens, wake the AI endpoint so the first real message is fast.
+  const warmed = useRef(false);
+  useEffect(() => {
+    if (!open || warmed.current || !config.aiEndpoint) return;
+    warmed.current = true;
+    warmUpSage(config.aiEndpoint);
+  }, [open, config.aiEndpoint]);
 
   // Stop talking when the panel closes.
   useEffect(() => {

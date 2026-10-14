@@ -38,6 +38,23 @@ const DECLARATIONS = TOOLS.map((t) => ({
   parametersJsonSchema: t.parameters,
 }));
 
+/**
+ * A tiny throwaway request that wakes the function and opens the connection to Gemini, so the
+ * customer's first real message doesn't pay the cold-start cost. Never throws.
+ */
+export async function warmUp(options: Pick<GeminiOptions, 'apiKey' | 'model'> & { timeoutMs: number }): Promise<void> {
+  try {
+    const ai = new GoogleGenAI({ apiKey: options.apiKey });
+    await ai.models.generateContent({
+      model: options.model,
+      contents: 'ping',
+      config: { maxOutputTokens: 1, abortSignal: AbortSignal.timeout(options.timeoutMs) },
+    });
+  } catch {
+    // Best effort only.
+  }
+}
+
 /** Gemini wants alternating user/model turns that start with the user. */
 export function toContents(turns: ChatRequest['messages']): Content[] {
   const contents: Content[] = [];
