@@ -5,7 +5,7 @@ dist
 .vscode/*
 !.vscode/extensions.json
 
-# Personal notes (not part of the submission)
+# Personal notes
 GUIDE.md
 
 # Secrets and local Netlify state (never commit API keys)
