@@ -27,14 +27,27 @@ let instance: Instance | null = null;
 // Captured at load time; document.currentScript is null once the script finishes running.
 const ownScript =
   (document.currentScript as HTMLScriptElement | null) ??
-  document.querySelector<HTMLScriptElement>('script[data-shop-assistant], script[src*="shop-assistant"]');
+  document.querySelector<HTMLScriptElement>('script[data-shop-assistant], script[src*="shop-assistant"], script[src*="/src/embed"]');
+
+/**
+ * The AI endpoint lives next to the widget script: wherever shop-assistant.js is served from,
+ * its /api/chat is on the same origin. Works the same on a customer's site and in dev.
+ */
+function defaultAiEndpoint(): string | null {
+  if (!ownScript?.src) return null;
+  try {
+    return new URL('/api/chat', ownScript.src).href;
+  } catch {
+    return null;
+  }
+}
 
 export function init(options: Partial<WidgetConfig> = {}): void {
   if (instance) {
     console.warn('[ShopAssistant] Already initialised. Call ShopAssistant.destroy() first to re-initialise.');
     return;
   }
-  const config = resolveConfig(options);
+  const config = resolveConfig({ aiEndpoint: defaultAiEndpoint(), ...options });
 
   const host = document.createElement('div');
   host.id = 'shop-assistant-widget';

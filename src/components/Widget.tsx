@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { respond, type AssistantAction, type AssistantReply } from '../ai/assistant';
+import { askSage } from '../ai/chatApi';
+import { toReply } from '../ai/reply';
 import type { WidgetConfig } from '../config';
 import { PRODUCTS, getProduct } from '../data/products';
 import { useSpeechSynthesis } from '../hooks/useSpeech';
@@ -24,6 +26,7 @@ export interface WidgetBridge {
 }
 
 const uid = () => Math.random().toString(36).slice(2, 10);
+const sleep = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
 
 /** Notify the host page so a real store could sync its own cart or analytics. */
 function emit(name: string, detail: unknown) {
@@ -59,7 +62,15 @@ export function Widget({ config, bridge }: { config: WidgetConfig; bridge: Widge
   const lastProducts = useRef<Product[]>([]);
   const focus = useRef<Product | undefined>(undefined);
   const toastTimer = useRef<number>(undefined);
-  const replyTimer = useRef<number>(undefined);
+
+  // Chat state read from async code. Messages only change through appendMessage, so the ref
+  // and the rendered state never disagree.
+  const messagesRef = useRef(messages);
+  const cartRef = useRef(cart.lines);
+  cartRef.current = cart.lines;
+  const pending = useRef(0);
+  const aiFailures = useRef(0);
+  const aiPausedUntil = useRef(0);
 
   // ---- public API bridge
   useEffect(() => {
@@ -108,10 +119,7 @@ export function Widget({ config, bridge }: { config: WidgetConfig; bridge: Widge
     if (!open) tts.cancel();
   }, [open, tts.cancel]);
 
-  useEffect(() => () => {
-    window.clearTimeout(toastTimer.current);
-    window.clearTimeout(replyTimer.current);
-  }, []);
+  useEffect(() => () => window.clearTimeout(toastTimer.current), []);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -130,10 +138,18 @@ export function Widget({ config, bridge }: { config: WidgetConfig; bridge: Widge
     [cart, showToast],
   );
 
-  const pushBot = useCallback((reply: AssistantReply | ChatMessage) => {
-    setMessages((prev) => [...prev, { id: uid(), role: 'bot', ...reply }]);
-    if (voiceOnRef.current) tts.speak(reply.text);
-  }, [tts.speak]);
+  const appendMessage = useCallback((message: ChatMessage) => {
+    messagesRef.current = [...messagesRef.current, message];
+    setMessages(messagesRef.current);
+  }, []);
+
+  const pushBot = useCallback(
+    (reply: AssistantReply | ChatMessage) => {
+      appendMessage({ id: uid(), role: 'bot', ...reply });
+      if (voiceOnRef.current) tts.speak(reply.text);
+    },
+    [appendMessage, tts.speak],
+  );
 
   const runActions = useCallback(
     (actions: AssistantAction[] = []) => {
@@ -166,8 +182,42 @@ export function Widget({ config, bridge }: { config: WidgetConfig; bridge: Widge
     [addToCart, cart],
   );
 
+  /**
+   * Get Sage's reply: ask the AI endpoint first, and if it is slow, down, rate-limited or not
+   * set up, answer with the built-in keyword assistant instead. The customer never sees an error.
+   */
+  const getReply = useCallback(
+    async (text: string, history: ChatMessage[]): Promise<{ reply: AssistantReply; viaAi: boolean }> => {
+      if (config.aiEndpoint && Date.now() >= aiPausedUntil.current) {
+        try {
+          const ai = await askSage(config.aiEndpoint, {
+            messages: history.slice(-11).map((m) => ({ role: m.role, text: m.text })),
+            cart: cartRef.current,
+            shown: lastProducts.current.map((p) => p.id),
+            persona: { assistantName: config.assistantName, brandName: config.brandName },
+          });
+          aiFailures.current = 0;
+          return { reply: toReply(ai), viaAi: true };
+        } catch {
+          // After two failures in a row, stop trying for a minute so visitors aren't kept waiting.
+          if (++aiFailures.current >= 2) aiPausedUntil.current = Date.now() + 60_000;
+        }
+      }
+      const reply = respond(text, {
+        products: PRODUCTS,
+        cart: cartRef.current,
+        lastProducts: lastProducts.current,
+        focus: focus.current,
+      });
+      return { reply, viaAi: false };
+    },
+    [config.aiEndpoint, config.assistantName, config.brandName],
+  );
+
   const sendMessage = useCallback(
     (text: string, viaVoice: boolean) => {
+      // One question at a time; the chat disables sending while Sage is answering.
+      if (pending.current > 0) return;
       // First use of the mic switches spoken replies on, unless the user has set it themselves.
       if (viaVoice && !voiceTouched.current && tts.supported) {
         voiceTouched.current = true;
@@ -175,29 +225,28 @@ export function Widget({ config, bridge }: { config: WidgetConfig; bridge: Widge
         setVoiceOn(true);
       }
       tts.cancel();
-      setMessages((prev) => [...prev, { id: uid(), role: 'user', text, viaVoice }]);
+      appendMessage({ id: uid(), role: 'user', text, viaVoice });
+      pending.current = 1;
       setTyping(true);
 
-      const reply = respond(text, {
-        products: PRODUCTS,
-        cart: cart.lines,
-        lastProducts: lastProducts.current,
-        focus: focus.current,
-      });
-      if (reply.products?.length) lastProducts.current = reply.products;
-      if (reply.focus) focus.current = reply.focus;
-
-      // A short, length-based "thinking" delay makes the conversation feel natural.
-      const delay = 450 + Math.min(reply.text.length * 6, 700);
-      window.clearTimeout(replyTimer.current);
-      replyTimer.current = window.setTimeout(() => {
-        setTyping(false);
-        const { focus: _focus, actions, ...message } = reply;
-        pushBot(message);
-        runActions(actions);
-      }, delay);
+      void (async () => {
+        const startedAt = Date.now();
+        try {
+          const { reply, viaAi } = await getReply(text, messagesRef.current);
+          if (reply.products?.length) lastProducts.current = reply.products;
+          if (reply.focus) focus.current = reply.focus;
+          // The built-in assistant answers instantly, so pace it a little to feel like a conversation.
+          if (!viaAi) await sleep(450 + Math.min(reply.text.length * 6, 700) - (Date.now() - startedAt));
+          const { focus: _focus, actions, ...message } = reply;
+          pushBot(message);
+          runActions(actions);
+        } finally {
+          pending.current = 0;
+          setTyping(false);
+        }
+      })();
     },
-    [cart.lines, pushBot, runActions, tts],
+    [appendMessage, getReply, pushBot, runActions, tts],
   );
 
   const handleOrderPlaced = useCallback(

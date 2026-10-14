@@ -13,6 +13,12 @@ export interface WidgetConfig {
   showTeaser: boolean;
   /** First assistant message. */
   greeting: string;
+  /**
+   * URL of the AI chat endpoint (POST). Defaults to /api/chat on the site that serves the widget script.
+   * 
+ull turns the AI off, so the built-in keyword assistant answers everything.
+   */
+  aiEndpoint: string | null;
 }
 
 export const DEFAULT_CONFIG: WidgetConfig = {
@@ -24,6 +30,7 @@ export const DEFAULT_CONFIG: WidgetConfig = {
   openOnLoad: false,
   showTeaser: true,
   greeting: '',
+  aiEndpoint: null,
 };
 
 const bool = (v: string | undefined) => (v === undefined ? undefined : v !== 'false' && v !== '0');
@@ -41,6 +48,8 @@ export function configFromDataset(ds: DOMStringMap): Partial<WidgetConfig> {
   if (openOnLoad !== undefined) cfg.openOnLoad = openOnLoad;
   const showTeaser = bool(ds.showTeaser);
   if (showTeaser !== undefined) cfg.showTeaser = showTeaser;
+  if (ds.aiEndpoint) cfg.aiEndpoint = ds.aiEndpoint;
+  if (bool(ds.ai) === false) cfg.aiEndpoint = null;
   return cfg;
 }
 

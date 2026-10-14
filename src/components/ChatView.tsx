@@ -37,7 +37,7 @@ export function ChatView({ messages, typing, onSend, onAdd, onOpenProduct, onSpe
   const submit = (e: FormEvent) => {
     e.preventDefault();
     const text = input.trim();
-    if (!text) return;
+    if (!text || typing) return;
     onSend(text, false);
     setInput('');
   };
@@ -180,7 +180,7 @@ export function ChatView({ messages, typing, onSend, onAdd, onOpenProduct, onSpe
           type="button"
           className={`sa-icon-btn sa-mic ${voice.listening ? 'is-active' : ''}`}
           onClick={toggleMic}
-          disabled={!voice.supported}
+          disabled={!voice.supported || (typing && !voice.listening)}
           title={voice.supported ? (voice.listening ? 'Stop listening' : 'Speak') : 'Voice input needs Chrome, Edge or Safari'}
           aria-label={voice.listening ? 'Stop listening' : 'Start voice input'}
           aria-pressed={voice.listening}
@@ -189,7 +189,7 @@ export function ChatView({ messages, typing, onSend, onAdd, onOpenProduct, onSpe
         </button>
 
         {!voice.listening && (
-          <button type="submit" className="sa-icon-btn sa-send" disabled={!input.trim()} aria-label="Send message">
+          <button type="submit" className="sa-icon-btn sa-send" disabled={!input.trim() || typing} aria-label="Send message">
             <SendIcon size={18} />
           </button>
         )}

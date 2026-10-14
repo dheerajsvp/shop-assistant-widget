@@ -129,8 +129,9 @@ src/
 ├── config.ts            # Widget options, defaults and validation
 ├── styles.css           # All widget styles (injected into the shadow root)
 ├── ai/
-│   ├── assistant.ts     # NLU engine: intents, entities, product ranking → reply + actions
-│   └── assistant.test.ts
+│   ├── assistant.ts     # Built-in keyword assistant (the always-available fallback)
+│   ├── chatApi.ts       # Request/response contract + client for the AI endpoint
+│   └── reply.ts         # Turns the AI endpoint's reply into widget messages
 ├── hooks/useSpeech.ts   # Speech recognition (STT) and speech synthesis (TTS) hooks
 ├── state/cart.tsx       # Cart reducer + context, persisted to localStorage
 ├── lib/
@@ -139,21 +140,56 @@ src/
 │   └── storage.ts       # Safe localStorage wrapper
 ├── data/products.ts     # Mock catalogue
 └── components/          # Widget shell, Chat, Catalog, ProductDetail, Cart, Checkout, Success
+
+server/                  # The optional AI endpoint (runs server-side, never in the browser)
+├── handler.ts           # POST /api/chat: CORS, rate limiting, error mapping
+├── gemini.ts            # Gemini adapter: runs the tool-calling loop under a time budget
+├── tools.ts             # Provider-neutral tools: search, cart, checkout (run on the real catalogue)
+├── prompt.ts            # System prompt
+├── validate.ts          # Input validation + redaction of card numbers, UPI IDs, emails
+└── rateLimit.ts         # Sliding-window limiter
+netlify/functions/chat.mts   # Netlify Function wrapper around server/handler.ts
 ```
 
 **Key decisions**
 
 - **Shadow DOM isolation.** A widget runs on other people's sites. The demo page includes deliberately hostile global CSS (`button { text-transform: uppercase; font-family: Georgia }`), and the widget is unaffected.
 - **Single IIFE bundle** (Vite library mode). The host page needs no build step and no dependencies. CSS is inlined into the JS.
-- **The assistant is a pure function**: `respond(text, context) → { text, products, actions, suggestions }`. It's easy to test, and it mirrors LLM tool calling. The UI executes `actions` such as `ADD_TO_CART` and `CHECKOUT`, so a real LLM can replace the local engine without UI changes.
-- **No backend, as the brief asks.** Mock data, with the cart in `localStorage` and a simulated payment gateway. Putting an LLM API key in front-end code would leak it, so a real model belongs behind a server proxy (see below).
+- **The assistant returns actions, not side effects**: a reply is `{ text, products, actions }`, and the UI executes actions such as `ADD_TO_CART` and `CHECKOUT`. That's why both the built-in assistant and the AI endpoint plug into the same widget.
+- **No backend required.** Mock data, with the cart in `localStorage` and a simulated payment gateway. The widget is complete on its own; the AI endpoint below is an optional enhancement.
 - **Localised for India.** Prices are in ₹ with Indian digit grouping (₹1,29,999) and are GST-inclusive. The assistant understands "₹5,000", "5000 rupees", "rs 5000" and "5k". Voice uses Indian English (`en-IN`) recognition and an Indian voice where available. Checkout supports UPI. The engine remembers the last products shown and the product in focus, so references like "it", "the second one" and "similar items" resolve correctly.
 
-### Swapping in a real LLM (production path)
+## AI assistant (optional)
 
-1. Add a small backend endpoint (e.g. a serverless function) that calls an LLM with tools such as `search_products`, `add_to_cart`, `remove_from_cart` and `checkout`.
-2. Map tool calls onto the existing `AssistantAction` types. The widget already knows how to execute them.
-3. Replace `respond()` in `Widget.tsx` with a `fetch` to that endpoint, streaming tokens into the bubble.
+Out of the box Sage answers with the built-in keyword assistant. Add a free Gemini API key and it becomes a real LLM-powered assistant that understands natural requests ("a gift for my dad who loves running, not too pricey"), Hinglish ("mujhe sasta speaker chahiye"), comparisons and follow-ups.
+
+```
+Widget ──POST /api/chat──▶ serverless function ──▶ Gemini (tool calling)
+  ▲                         • holds the API key             │ search_products, add_to_cart,
+  │                         • validates + redacts input     │ remove_from_cart, view_cart,
+  │                         • rate limits                   ▼ start_checkout, open_catalogue
+  └── if it is slow, down or rate-limited, the widget silently falls back to the built-in assistant
+```
+
+**Set it up locally**
+
+1. Get a free key at [aistudio.google.com](https://aistudio.google.com) → *Get API key*.
+2. Copy `.env.example` to `.env` and put the key in it (`.env` is git-ignored).
+3. `npm run dev`. The widget calls `/api/chat` on the same server automatically.
+
+**On Netlify**, add `GEMINI_API_KEY` under *Site configuration → Environment variables*. The function in `netlify/functions/chat.mts` is deployed automatically. Without the key the widget just uses the built-in assistant.
+
+**Design notes**
+
+- **The key never reaches the browser.** The widget only knows the endpoint URL (override with `data-ai-endpoint`, or turn the AI off with `data-ai="false"`).
+- **The model can only talk about real products.** Tools run on the server against the catalogue, product cards are rendered from product *ids* the widget looks up itself, and anything the model invents simply doesn't match.
+- **Cart actions are validated twice**: by the tools (known ids, quantity limits) and again by the widget before it acts.
+- **Payment details never reach the model.** Card numbers, CVVs, UPI IDs and emails are redacted from the conversation on the server before any model call. Checkout stays a separate screen the customer fills in directly.
+- **Bounded cost and latency**: a per-visitor rate limit, capped input sizes, a hard time budget per reply (Netlify functions are cut off at about 10 s), and a circuit breaker in the widget that stops trying after two failures in a row.
+- **Provider-neutral tools.** Tools are plain functions with JSON schemas in `server/tools.ts`; `server/gemini.ts` is the only Gemini-specific file, so another provider would need only its own small adapter.
+- **Fast by design.** Before calling the model, the server searches the catalogue for the customer's message and passes the likely matches along, so most questions take one model call instead of two.
+
+The free tier has rate limits and variable latency, which is exactly why the fallback exists. Don't send personal data through a free-tier key.
 
 ## Browser support
 
@@ -174,4 +210,4 @@ The live demo is deployed on **Netlify**, connected to this repository: every pu
 
 ## Tech stack
 
-React 19 · TypeScript · Vite (library mode) · Vitest · Web Speech API · CSS custom properties. No UI or state libraries.
+React 19 · TypeScript · Vite (library mode) · Vitest · Web Speech API · CSS custom properties · Netlify Functions + Gemini API (optional AI). No UI or state libraries.
