@@ -3,7 +3,7 @@
 An embeddable, voice-enabled AI shopping assistant that any website can add with **one `<script>` tag**.
 Customers can chat or talk to the assistant, browse a product catalogue, manage a cart, and complete a mock checkout, all inside a floating widget.
 
-> **Live demo:** https://dheeraj-shop-assistant.netlify.app · **One-line embed proof:** https://dheeraj-shop-assistant.netlify.app/one-line-embed.html · **Demo video:** https://drive.google.com/file/d/1TE91ZcldWE-qXX53wkCjdtagNid3aJud/view?usp=sharing
+> **Live demo:** https://dheeraj-shop-assistant.netlify.app · **One-line embed proof:** https://dheeraj-shop-assistant.netlify.app/one-line-embed.html · 
 
 ## Features
 
